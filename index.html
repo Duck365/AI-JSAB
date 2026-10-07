@@ -41,6 +41,10 @@
             color: #00FF00;
             text-shadow: 0 0 15px #00FF00;
         }
+        .victory-text {
+            color: #00FFFF;
+            text-shadow: 0 0 15px #00FFFF;
+        }
         h2 { font-size: 2.5rem; margin-bottom: 1.5rem; }
         button {
             background: transparent;
@@ -103,18 +107,27 @@
     <!-- Main Menu -->
     <div id="menu-screen" class="screen active">
         <h1>NEON EVASION</h1>
-        <button onclick="showScreen('difficulty-screen')">Start</button>
+        <button onclick="showScreen('mode-screen')">Start</button>
         <button onclick="showScreen('customize-screen')">Customize</button>
         <button onclick="showScreen('keybinds-screen')">Keybinds</button>
         <button onclick="showScreen('credits-screen')">Credits</button>
     </div>
 
+    <!-- Mode Screen -->
+    <div id="mode-screen" class="screen">
+        <h2>SELECT MODE</h2>
+        <button onclick="selectMode('Endless')">Endless</button>
+        <button onclick="selectMode('60 Seconds')">60 Seconds</button>
+        <button onclick="showScreen('menu-screen')">Back</button>
+    </div>
+
     <!-- Difficulty Screen -->
     <div id="difficulty-screen" class="screen">
         <h2>SELECT DIFFICULTY</h2>
-        <button onclick="startGame(3)">Normal (3 Hits)</button>
-        <button onclick="startGame(1)">Hardcore (1 Hit)</button>
-        <button onclick="showScreen('menu-screen')">Back</button>
+        <button onclick="startGame(6, 'Easy')">Easy (6 Hits)</button>
+        <button onclick="startGame(3, 'Normal')">Normal (3 Hits)</button>
+        <button onclick="startGame(1, 'Hardcore')">Hardcore (1 Hit)</button>
+        <button onclick="showScreen('mode-screen')">Back</button>
     </div>
 
     <!-- Customize Screen -->
@@ -155,14 +168,21 @@
     <!-- Game Over Screen -->
     <div id="game-over-screen" class="screen">
         <h1 class="danger-text">SYSTEM FAILURE</h1>
-        <p>Time Survived: <span id="survival-time">0</span>s</p>
+        <p><span id="run-details"></span><br><span id="survival-time">0</span> seconds</p>
+        <button onclick="showScreen('menu-screen')">MAIN MENU</button>
+    </div>
+
+    <!-- Victory Screen -->
+    <div id="victory-screen" class="screen">
+        <h1 class="victory-text">LEVEL CLEARED</h1>
+        <p><span id="victory-details"></span><br>60 seconds</p>
         <button onclick="showScreen('menu-screen')">MAIN MENU</button>
     </div>
 
     <!-- Game Canvas -->
     <div id="hud">
         <div>Time: <span id="timer-display">0</span></div>
-        <div>HP: <span id="hp-display">3</span></div>
+        <div>HP: <span id="hp-display">6</span></div>
     </div>
     <canvas id="gameCanvas"></canvas>
 </div>
@@ -178,6 +198,8 @@
     let projectiles = [];
     let playerColor = '#00FFFF';
     let startTime;
+    let selectedMode = '';
+    let selectedDifficulty = '';
     
     // Input State
     const keys = {
@@ -187,7 +209,7 @@
 
     // Player Object
     const player = {
-        x: 0, y: 0, size: 20, speed: 6, health: 3,
+        x: 0, y: 0, size: 20, speed: 6, health: 6,
         dashCooldown: 0, maxDashCooldown: 45, dashDistance: 180, isInvulnerable: 0
     };
 
@@ -209,6 +231,11 @@
         playerColor = color;
         document.getElementById('current-color-text').textContent = color;
         document.getElementById('current-color-text').style.color = color === '#000000' ? '#555' : color;
+    }
+
+    function selectMode(mode) {
+        selectedMode = mode;
+        showScreen('difficulty-screen');
     }
 
     // Controls
@@ -233,7 +260,6 @@
             player.y = Math.max(player.size, Math.min(canvas.height - player.size, player.y));
             
             player.dashCooldown = player.maxDashCooldown;
-            // Short invincibility during dash
             player.isInvulnerable = Math.max(player.isInvulnerable, 15); 
         }
     });
@@ -249,7 +275,7 @@
     function executeAttacks() {
         let t = frameCount;
 
-        if (t < 120) return; // 2 seconds startup grace
+        if (t < 120) return; // Startup grace period
 
         if (t > 120 && t < 400 && t % 25 === 0) {
             let speed = 4;
@@ -295,6 +321,15 @@
     function update() {
         if (!gameActive) return;
 
+        let timeSurvived = Math.floor((Date.now() - startTime) / 1000);
+        document.getElementById('timer-display').innerText = timeSurvived;
+
+        // Check Win Condition for 60 Seconds Mode
+        if (selectedMode === '60 Seconds' && timeSurvived >= 60) {
+            gameWon();
+            return;
+        }
+
         let dx = 0; let dy = 0;
         if (keys.ArrowUp || keys.w) dy -= 1;
         if (keys.ArrowDown || keys.s) dy += 1;
@@ -325,7 +360,6 @@
                 continue;
             }
 
-            // Collision logic with health checking
             if (player.isInvulnerable <= 0) {
                 if (Math.abs(player.x - p.x) < (player.size/2 + p.size/2 - 2) && 
                     Math.abs(player.y - p.y) < (player.size/2 + p.size/2 - 2)) {
@@ -335,9 +369,9 @@
                     
                     if (player.health <= 0) {
                         gameOver();
+                        return; // Stop updating after game over
                     } else {
-                        // Grant 60 frames (1 second) of i-frames after taking damage
-                        player.isInvulnerable = 60; 
+                        player.isInvulnerable = 60; // 1 second of i-frames
                     }
                 }
             }
@@ -345,8 +379,6 @@
 
         executeAttacks();
         frameCount++;
-        
-        document.getElementById('timer-display').innerText = Math.floor((Date.now() - startTime) / 1000);
         
         draw();
         animationId = requestAnimationFrame(update);
@@ -356,7 +388,6 @@
         ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Player Rendering (Blinks rapidly when hit to indicate i-frames)
         if (player.isInvulnerable > 0 && player.isInvulnerable < 120 && frameCount % 10 < 5) {
             ctx.globalAlpha = 0.2;
         } else if (player.isInvulnerable > 0) {
@@ -393,12 +424,13 @@
         }
     }
 
-    function startGame(hp) {
+    function startGame(hp, diffName) {
+        selectedDifficulty = diffName;
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         
         resize();
         canvas.style.display = 'block';
-        document.getElementById('hud').style.display = 'flex'; // Changed to flex for the stacked layout
+        document.getElementById('hud').style.display = 'flex';
         
         player.x = canvas.width / 2;
         player.y = canvas.height / 2;
@@ -419,8 +451,16 @@
         gameActive = false;
         cancelAnimationFrame(animationId);
         let timeSurvived = Math.floor((Date.now() - startTime) / 1000);
+        document.getElementById('run-details').innerText = `${selectedMode}, ${selectedDifficulty}`;
         document.getElementById('survival-time').innerText = timeSurvived;
         showScreen('game-over-screen');
+    }
+
+    function gameWon() {
+        gameActive = false;
+        cancelAnimationFrame(animationId);
+        document.getElementById('victory-details').innerText = `60 Seconds, ${selectedDifficulty}`;
+        showScreen('victory-screen');
     }
 </script>
 
