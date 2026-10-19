@@ -4,38 +4,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Void Evasion</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style (1).css">
 </head>
 <body>
     <div id="game-container">
-        <!-- The main stage for the bullet hell -->
         <canvas id="gameCanvas" width="800" height="600"></canvas>
         
-        <!-- UI Overlays -->
         <div id="ui-layer">
-            <!-- Main Menu -->
             <div id="start-screen" class="screen">
                 <h1>VOID EVASION</h1>
                 <p id="subtitle">The man who speaks in hands awaits...</p>
-                <div class="controls-info">Move: WASD / Arrows | Dash: Space</div>
+                <div class="controls-info">Move: WASD / Arrows | Dash: Space | Debug: `</div>
+                
+                <!-- NEW DEBUG BUTTON -->
+                <button id="debug-btn" style="margin-bottom: 15px; font-size: 14px;">Debug Mode: OFF</button>
+                
                 <button id="start-btn">Enter The Void</button>
             </div>
 
-            <!-- Death Screen -->
             <div id="game-over-screen" class="screen hidden">
                 <h1>SHATTERED</h1>
                 <p>Your determination wasn't enough.</p>
                 <button id="restart-btn">Try Again</button>
             </div>
 
-            <!-- Victory Screen -->
             <div id="victory-screen" class="screen hidden">
                 <h1>SURVIVED</h1>
                 <p>The darkness recedes... for now.</p>
                 <button id="home-btn">Return</button>
             </div>
             
-            <!-- Heads Up Display -->
             <div id="hud" class="hidden">
                 <div id="hp-display">Integrity: <span id="hp-value">3</span></div>
                 <div id="time-display">Sync: <span id="time-value">0:00</span></div>
@@ -43,7 +41,6 @@
         </div>
     </div>
 
-    <!-- Links to the logic we will build later -->
-    <script src="game.js"></script>
+    <script src="game (1).js"></script>
 </body>
 </html>
