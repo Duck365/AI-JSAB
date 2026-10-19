@@ -7,7 +7,7 @@ function resizeCanvas() {
     canvas.height = window.innerHeight;
 }
 window.addEventListener('resize', resizeCanvas);
-resizeCanvas(); // Call immediately on load
+resizeCanvas();
 
 // --- UI Elements & Glitch Effect ---
 const startScreen = document.getElementById('start-screen');
@@ -18,10 +18,9 @@ const hpValue = document.getElementById('hp-value');
 const timeValue = document.getElementById('time-value');
 const subtitle = document.getElementById('subtitle');
 
-// Creepy Wingdings Text Glitch
 if (subtitle) {
     const normalText = "The man who speaks in hands awaits...";
-    const wingdingsText = "❄︎☟︎☜︎ ✞︎⚐︎✋︎👎︎ 👍︎⚐︎☠︎💧︎🕆︎💣︎☜︎💧︎ ✌︎☹︎☹︎"; // "THE VOID CONSUMES ALL"
+    const wingdingsText = "❄︎☟︎☜︎ ✞︎⚐︎✋︎👎︎ 👍︎⚐︎☠︎💧︎🕆︎💣︎☜︎💧︎ ✌︎☹︎☹︎"; 
     
     setInterval(() => {
         if (!gameActive && Math.random() < 0.3) {
@@ -31,36 +30,37 @@ if (subtitle) {
             setTimeout(() => {
                 subtitle.style.fontFamily = "'Courier New', Courier, monospace";
                 subtitle.innerText = normalText;
-            }, 100 + Math.random() * 300); // Glitch back to normal quickly
+            }, 100 + Math.random() * 300);
         }
     }, 1000);
 }
 
-// --- Game State ---
+// --- Game State & Debug ---
 let gameActive = false;
 let animationId;
 let projectiles = [];
 let warnings = [];
 let maxHp = 3;
 let currentHp = maxHp;
+let totalHits = 0;
+let debugMode = true; 
 
 // --- Audio & Timeline Engine ---
 const bgMusic = new Audio('Dark-Darker-Yet-Darker-Remix.mp3');
 let nextAttackIndex = 0;
-const songLength = 120; // Triggers victory at 2 minutes
+const songLength = 120; 
 
-// --- Player Object ---
+// --- Player Object (Red Square Soul) ---
 const player = {
     x: canvas.width / 2,
     y: canvas.height / 2,
-    size: 16, // Small hitbox for tight dodging
+    size: 14, // Small square
     speed: 6,
-    color: '#ffffff',
-    isDashing: false,
+    color: '#ff0000', // Undertale Red
     dashCooldown: 0,
-    dashDuration: 0,
-    dashSpeed: 15,
-    invulnerable: 0
+    dashDistance: 150, // Instant teleport distance
+    invulnerable: 0,
+    trails: [] // Stores dash visual effects
 };
 
 // --- Controls ---
@@ -85,17 +85,18 @@ function startGame() {
 
     player.x = canvas.width / 2;
     player.y = canvas.height / 2;
+    player.trails = [];
     currentHp = maxHp;
     hpValue.innerText = currentHp;
     
     projectiles = [];
     warnings = [];
     nextAttackIndex = 0;
+    totalHits = 0;
     gameActive = true;
 
-    // Start Audio
     bgMusic.currentTime = 0;
-    bgMusic.play().catch(e => console.log("Audio blocked by browser. Click to interact.", e));
+    bgMusic.play().catch(e => console.log("Audio blocked:", e));
 
     updateLoop();
 }
@@ -105,18 +106,17 @@ function spawnGasterBlaster(x, y, w, h) {
     warnings.push({ x, y, w, h, life: 30, maxLife: 30 });
     setTimeout(() => {
         if (gameActive) projectiles.push({ x, y, w, h, dx: 0, dy: 0, life: 45, type: 'laser' });
-    }, 500); // 0.5s warning before laser fires
+    }, 500); 
 }
 
 function spawnVoidHands() {
-    const numHands = 16; // High density
+    const numHands = 16; 
     const radius = Math.max(canvas.width, canvas.height) / 2;
     for (let i = 0; i < numHands; i++) {
         let angle = (Math.PI * 2 / numHands) * i;
         let startX = player.x + Math.cos(angle) * radius;
         let startY = player.y + Math.sin(angle) * radius;
         
-        // Aim exactly at where the player is currently standing
         let dx = Math.cos(angle + Math.PI) * 6; 
         let dy = Math.sin(angle + Math.PI) * 6;
         
@@ -126,11 +126,10 @@ function spawnVoidHands() {
 
 function spawnGlitchWall(direction) {
     let speed = 10;
-    let gap = 55; // Tight gaps
+    let gap = 55; 
     
     if (direction === 'horizontal') {
         for (let y = 0; y < canvas.height; y += gap) {
-            // Leave a tight random safe zone tracking the player's general area
             if (y < player.y - 70 || y > player.y + 70) {
                 projectiles.push({ x: canvas.width, y, w: 25, h: 12, dx: -speed, dy: 0, life: 250, type: 'glitch' });
             }
@@ -146,34 +145,23 @@ function spawnGlitchWall(direction) {
 
 // --- Attack Timeline ---
 const gasterSequence = [
-    // Intro - Assessing the soul
     { time: 1.0, action: () => spawnGasterBlaster(0, canvas.height / 2 - 100, canvas.width, 200) },
     { time: 2.5, action: () => spawnGasterBlaster(canvas.width / 2 - 100, 0, 200, canvas.height) },
     { time: 3.5, action: () => spawnVoidHands() },
-    
-    // Trapping the player
     { time: 6.0, action: () => spawnGlitchWall('horizontal') },
     { time: 6.5, action: () => spawnGasterBlaster(0, 0, canvas.width, 150) },
     { time: 6.5, action: () => spawnGasterBlaster(0, canvas.height - 150, canvas.width, 150) },
     { time: 8.0, action: () => spawnVoidHands() },
-    
-    // Crossfire
     { time: 10.0, action: () => spawnGasterBlaster(0, player.y - 80, canvas.width, 160) },
     { time: 10.5, action: () => spawnGasterBlaster(player.x - 80, 0, 160, canvas.height) },
     { time: 11.5, action: () => spawnGlitchWall('vertical') },
-    
-    // Fast Rhythm Section (Overlapping attacks)
     { time: 14.0, action: () => spawnVoidHands() },
     { time: 14.5, action: () => spawnGlitchWall('horizontal') },
     { time: 15.0, action: () => spawnVoidHands() },
     { time: 15.5, action: () => spawnGlitchWall('vertical') },
-    
-    // Screen Wipe (Forces precise positioning or dashing)
     { time: 18.0, action: () => spawnGasterBlaster(0, 0, canvas.width, canvas.height / 3) },
     { time: 18.5, action: () => spawnGasterBlaster(0, canvas.height / 3, canvas.width, canvas.height / 3) },
     { time: 19.0, action: () => spawnGasterBlaster(0, (canvas.height / 3) * 2, canvas.width, canvas.height / 3) },
-    
-    // The Swarm
     { time: 21.0, action: () => { spawnVoidHands(); spawnVoidHands(); } },
     { time: 22.0, action: () => {
         spawnGasterBlaster(0, player.y - 120, canvas.width, 100);
@@ -181,8 +169,6 @@ const gasterSequence = [
     }},
     { time: 23.5, action: () => spawnGlitchWall('horizontal') },
     { time: 24.5, action: () => spawnGlitchWall('vertical') },
-    
-    // Continuous pressure
     { time: 27.0, action: () => spawnVoidHands() },
     { time: 28.0, action: () => spawnGasterBlaster(canvas.width/4, 0, canvas.width/2, canvas.height) },
     { time: 29.0, action: () => spawnVoidHands() },
@@ -202,7 +188,6 @@ function updateLoop() {
     let currentTime = bgMusic.currentTime;
     timeValue.innerText = Math.floor(currentTime / 60) + ":" + (Math.floor(currentTime % 60)).toString().padStart(2, '0');
 
-    // Win condition check
     if (currentTime >= songLength) {
         gameWon();
         return;
@@ -210,28 +195,44 @@ function updateLoop() {
 
     executeAttacks(currentTime);
 
-    // Player Movement & Dash Logic
-    let currentSpeed = player.speed;
-    
-    if (keys[' '] && player.dashCooldown === 0) {
-        player.isDashing = true;
-        player.dashDuration = 12;
+    // --- Player Movement & Teleport Dash ---
+    let dx = 0;
+    let dy = 0;
+
+    if (keys.w || keys.ArrowUp) dy -= 1;
+    if (keys.s || keys.ArrowDown) dy += 1;
+    if (keys.a || keys.ArrowLeft) dx -= 1;
+    if (keys.d || keys.ArrowRight) dx += 1;
+
+    // Normalize diagonal movement
+    if (dx !== 0 && dy !== 0) {
+        let length = Math.sqrt(dx * dx + dy * dy);
+        dx /= length;
+        dy /= length;
+    }
+
+    if (keys[' '] && player.dashCooldown === 0 && (dx !== 0 || dy !== 0)) {
+        // Record trail for teleport animation
+        player.trails.push({ x: player.x, y: player.y, targetX: player.x + dx * player.dashDistance, targetY: player.y + dy * player.dashDistance, life: 10 });
+        
+        // Instant Teleport
+        player.x += dx * player.dashDistance;
+        player.y += dy * player.dashDistance;
+        
         player.dashCooldown = 45;
         player.invulnerable = 15;
+    } else {
+        // Normal movement
+        player.x += dx * player.speed;
+        player.y += dy * player.speed;
     }
-    
-    if (player.isDashing) {
-        currentSpeed = player.dashSpeed;
-        player.dashDuration--;
-        if (player.dashDuration <= 0) player.isDashing = false;
-    }
+
     if (player.dashCooldown > 0) player.dashCooldown--;
     if (player.invulnerable > 0) player.invulnerable--;
-
-    if (keys.w || keys.ArrowUp) player.y -= currentSpeed;
-    if (keys.s || keys.ArrowDown) player.y += currentSpeed;
-    if (keys.a || keys.ArrowLeft) player.x -= currentSpeed;
-    if (keys.d || keys.ArrowRight) player.x += currentSpeed;
+    
+    // Update teleport trails
+    player.trails.forEach(t => t.life--);
+    player.trails = player.trails.filter(t => t.life > 0);
 
     // Screen Boundaries
     player.x = Math.max(player.size / 2, Math.min(canvas.width - player.size / 2, player.x));
@@ -246,7 +247,7 @@ function updateLoop() {
         p.y += p.dy;
         p.life--;
 
-        // Collision Check (AABB)
+        // Collision Check (AABB adapted for square player)
         if (player.invulnerable === 0 && 
             player.x - player.size/2 < p.x + (p.w/2 || p.w) &&
             player.x + player.size/2 > p.x - (p.w/2 || 0) &&
@@ -263,10 +264,11 @@ function updateLoop() {
 }
 
 function takeDamage() {
+    totalHits++; 
     currentHp--;
     hpValue.innerText = currentHp;
-    player.invulnerable = 60; // 1 second i-frames
-    if (currentHp <= 0) gameOver();
+    player.invulnerable = 60; 
+    // if (currentHp <= 0) gameOver(); // Commented out for debug mode testing!
 }
 
 function gameOver() {
@@ -289,7 +291,7 @@ function gameWon() {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw Warnings (Pulsing Purple)
+    // Draw Warnings 
     warnings.forEach(w => {
         ctx.fillStyle = `rgba(106, 13, 173, ${w.life / w.maxLife})`; 
         ctx.fillRect(w.x, w.y, w.w, w.h);
@@ -307,11 +309,27 @@ function draw() {
         }
     });
 
-    // Draw Player (Blinking when invulnerable)
+    // Draw Teleport Trails
+    player.trails.forEach(t => {
+        ctx.strokeStyle = `rgba(255, 0, 0, ${t.life / 10})`;
+        ctx.lineWidth = player.size;
+        ctx.beginPath();
+        ctx.moveTo(t.x, t.y);
+        ctx.lineTo(t.targetX, t.targetY);
+        ctx.stroke();
+    });
+
+    // Draw Player (Square, Blinking when invulnerable)
     if (player.invulnerable % 4 < 2) { 
         ctx.fillStyle = player.color;
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(player.x - player.size / 2, player.y - player.size / 2, player.size, player.size);
+    }
+
+    // --- DEBUG HUD ---
+    if (debugMode) {
+        ctx.fillStyle = '#ffff00'; 
+        ctx.font = '18px "Courier New", Courier, monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(`DEBUG - HITS TAKEN: ${totalHits}`, 20, canvas.height - 20);
     }
 }
