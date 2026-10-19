@@ -1,69 +1,42 @@
-// --- Game Setup & Variables ---
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-let gameActive = false;
-let isPaused = false;
-let lastTime = 0;
+// --- Fullscreen Canvas Setup ---
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas(); // Call immediately on load
 
-// Player Stats
-const player = {
-    x: canvas.width / 2,
-    y: canvas.height / 2,
-    w: 15,
-    h: 15,
-    speed: 5,
-    color: '#ffffff', // White player square
-    hp: 3,
-    isDashing: false,
-    dashSpeed: 15,
-    dashDuration: 10,
-    dashTimer: 0,
-    dashCooldown: 30,
-    dashCooldownTimer: 0,
-    invincible: false,
-    invincibleTimer: 0
-};
-
-// Input Tracking
-const keys = {};
-window.addEventListener('keydown', e => { keys[e.code] = true; });
-window.addEventListener('keyup', e => { keys[e.code] = false; });
-
-// Projectiles and Warnings
-let projectiles = [];
-let warnings = [];
-
-// --- Audio & Attack Sync Engine ---
-const bgMusic = new Audio('Dark-Darker-Yet-Darker-Remix.mp3');
-bgMusic.volume = 0.8;
-let nextAttackIndex = 0;
-
-// --- DOM Elements ---
-const screens = {
-    start: document.getElementById('start-screen'),
-    gameOver: document.getElementById('game-over-screen'),
-    victory: document.getElementById('victory-screen'),
-    hud: document.getElementById('hud')
-};
-const displays = {
-    hp: document.getElementById('hp-Here is the complete `game.js` file. It includes the player movement with dashing, precise collision detection, and the audio-synchronized timeline that triggers Gaster's attacks exactly to the music.
-
-Create `game.js` in your repository and paste this exact code:
-
-```javascript
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-
-// UI Elements
+// --- UI Elements & Glitch Effect ---
 const startScreen = document.getElementById('start-screen');
 const gameOverScreen = document.getElementById('game-over-screen');
 const victoryScreen = document.getElementById('victory-screen');
 const hud = document.getElementById('hud');
 const hpValue = document.getElementById('hp-value');
 const timeValue = document.getElementById('time-value');
+const subtitle = document.getElementById('subtitle');
 
-// Game State
+// Creepy Wingdings Text Glitch
+if (subtitle) {
+    const normalText = "The man who speaks in hands awaits...";
+    const wingdingsText = "❄︎☟︎☜︎ ✞︎⚐︎✋︎👎︎ 👍︎⚐︎☠︎💧︎🕆︎💣︎☜︎💧︎ ✌︎☹︎☹︎"; // "THE VOID CONSUMES ALL"
+    
+    setInterval(() => {
+        if (!gameActive && Math.random() < 0.3) {
+            subtitle.style.fontFamily = "Wingdings, sans-serif";
+            subtitle.innerText = wingdingsText;
+            
+            setTimeout(() => {
+                subtitle.style.fontFamily = "'Courier New', Courier, monospace";
+                subtitle.innerText = normalText;
+            }, 100 + Math.random() * 300); // Glitch back to normal quickly
+        }
+    }, 1000);
+}
+
+// --- Game State ---
 let gameActive = false;
 let animationId;
 let projectiles = [];
@@ -71,26 +44,26 @@ let warnings = [];
 let maxHp = 3;
 let currentHp = maxHp;
 
-// Audio & Timeline Engine
+// --- Audio & Timeline Engine ---
 const bgMusic = new Audio('Dark-Darker-Yet-Darker-Remix.mp3');
 let nextAttackIndex = 0;
-const songLength = 120; // Set this to the song's end time in seconds to trigger Victory
+const songLength = 120; // Triggers victory at 2 minutes
 
-// Player Object
+// --- Player Object ---
 const player = {
-    x: 400,
-    y: 300,
+    x: canvas.width / 2,
+    y: canvas.height / 2,
     size: 16, // Small hitbox for tight dodging
-    speed: 5,
+    speed: 6,
     color: '#ffffff',
     isDashing: false,
     dashCooldown: 0,
     dashDuration: 0,
-    dashSpeed: 12,
+    dashSpeed: 15,
     invulnerable: 0
 };
 
-// Controls
+// --- Controls ---
 const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false, ' ': false };
 
 window.addEventListener('keydown', (e) => {
@@ -100,7 +73,6 @@ window.addEventListener('keyup', (e) => {
     if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
 });
 
-// Start Game Logic
 document.getElementById('start-btn').addEventListener('click', startGame);
 document.getElementById('restart-btn').addEventListener('click', startGame);
 document.getElementById('home-btn').addEventListener('click', () => location.reload());
@@ -111,8 +83,8 @@ function startGame() {
     victoryScreen.classList.add('hidden');
     hud.classList.remove('hidden');
 
-    player.x = 400;
-    player.y = 300;
+    player.x = canvas.width / 2;
+    player.y = canvas.height / 2;
     currentHp = maxHp;
     hpValue.innerText = currentHp;
     
@@ -128,65 +100,92 @@ function startGame() {
     updateLoop();
 }
 
-// Custom Gaster Attacks
+// --- Custom Gaster Attacks ---
 function spawnGasterBlaster(x, y, w, h) {
-    // 0.5s warning before laser fires (assuming 60fps, 30 frames)
     warnings.push({ x, y, w, h, life: 30, maxLife: 30 });
     setTimeout(() => {
-        if (gameActive) projectiles.push({ x, y, w, h, dx: 0, dy: 0, life: 40, type: 'laser' });
-    }, 500);
+        if (gameActive) projectiles.push({ x, y, w, h, dx: 0, dy: 0, life: 45, type: 'laser' });
+    }, 500); // 0.5s warning before laser fires
 }
 
 function spawnVoidHands() {
-    const numHands = 14; 
-    const radius = 350;
+    const numHands = 16; // High density
+    const radius = Math.max(canvas.width, canvas.height) / 2;
     for (let i = 0; i < numHands; i++) {
         let angle = (Math.PI * 2 / numHands) * i;
         let startX = player.x + Math.cos(angle) * radius;
         let startY = player.y + Math.sin(angle) * radius;
         
         // Aim exactly at where the player is currently standing
-        let dx = Math.cos(angle + Math.PI) * 5.5; 
-        let dy = Math.sin(angle + Math.PI) * 5.5;
+        let dx = Math.cos(angle + Math.PI) * 6; 
+        let dy = Math.sin(angle + Math.PI) * 6;
         
-        projectiles.push({ x: startX, y: startY, w: 12, h: 12, dx, dy, life: 180, type: 'hand' });
+        projectiles.push({ x: startX, y: startY, w: 14, h: 14, dx, dy, life: 200, type: 'hand' });
     }
 }
 
 function spawnGlitchWall(direction) {
-    let speed = 9;
-    let gap = 50; 
+    let speed = 10;
+    let gap = 55; // Tight gaps
+    
     if (direction === 'horizontal') {
         for (let y = 0; y < canvas.height; y += gap) {
-            // Leave a tight random safe zone
-            if (y < player.y - 60 || y > player.y + 60) {
-                projectiles.push({ x: canvas.width, y, w: 20, h: 10, dx: -speed, dy: 0, life: 120, type: 'glitch' });
+            // Leave a tight random safe zone tracking the player's general area
+            if (y < player.y - 70 || y > player.y + 70) {
+                projectiles.push({ x: canvas.width, y, w: 25, h: 12, dx: -speed, dy: 0, life: 250, type: 'glitch' });
             }
         }
     } else {
         for (let x = 0; x < canvas.width; x += gap) {
-            if (x < player.x - 60 || x > player.x + 60) {
-                projectiles.push({ x, y: -20, w: 10, h: 20, dx: 0, dy: speed, life: 120, type: 'glitch' });
+            if (x < player.x - 70 || x > player.x + 70) {
+                projectiles.push({ x, y: -20, w: 12, h: 25, dx: 0, dy: speed, life: 250, type: 'glitch' });
             }
         }
     }
 }
 
-// Attack Timeline (Adjust the 'time' values to match beat drops in your specific mp3)
+// --- Attack Timeline ---
 const gasterSequence = [
-    { time: 1.5, action: () => spawnGasterBlaster(0, 200, canvas.width, 100) },
-    { time: 2.5, action: () => spawnGasterBlaster(200, 0, 100, canvas.height) },
-    { time: 4.0, action: () => spawnVoidHands() },
-    { time: 6.5, action: () => spawnGlitchWall('horizontal') },
-    { time: 7.5, action: () => spawnGlitchWall('vertical') },
-    { time: 9.0, action: () => spawnVoidHands() },
-    { time: 10.0, action: () => {
-        spawnGasterBlaster(0, player.y - 100, canvas.width, 80);
-        spawnGasterBlaster(0, player.y + 20, canvas.width, 80);
+    // Intro - Assessing the soul
+    { time: 1.0, action: () => spawnGasterBlaster(0, canvas.height / 2 - 100, canvas.width, 200) },
+    { time: 2.5, action: () => spawnGasterBlaster(canvas.width / 2 - 100, 0, 200, canvas.height) },
+    { time: 3.5, action: () => spawnVoidHands() },
+    
+    // Trapping the player
+    { time: 6.0, action: () => spawnGlitchWall('horizontal') },
+    { time: 6.5, action: () => spawnGasterBlaster(0, 0, canvas.width, 150) },
+    { time: 6.5, action: () => spawnGasterBlaster(0, canvas.height - 150, canvas.width, 150) },
+    { time: 8.0, action: () => spawnVoidHands() },
+    
+    // Crossfire
+    { time: 10.0, action: () => spawnGasterBlaster(0, player.y - 80, canvas.width, 160) },
+    { time: 10.5, action: () => spawnGasterBlaster(player.x - 80, 0, 160, canvas.height) },
+    { time: 11.5, action: () => spawnGlitchWall('vertical') },
+    
+    // Fast Rhythm Section (Overlapping attacks)
+    { time: 14.0, action: () => spawnVoidHands() },
+    { time: 14.5, action: () => spawnGlitchWall('horizontal') },
+    { time: 15.0, action: () => spawnVoidHands() },
+    { time: 15.5, action: () => spawnGlitchWall('vertical') },
+    
+    // Screen Wipe (Forces precise positioning or dashing)
+    { time: 18.0, action: () => spawnGasterBlaster(0, 0, canvas.width, canvas.height / 3) },
+    { time: 18.5, action: () => spawnGasterBlaster(0, canvas.height / 3, canvas.width, canvas.height / 3) },
+    { time: 19.0, action: () => spawnGasterBlaster(0, (canvas.height / 3) * 2, canvas.width, canvas.height / 3) },
+    
+    // The Swarm
+    { time: 21.0, action: () => { spawnVoidHands(); spawnVoidHands(); } },
+    { time: 22.0, action: () => {
+        spawnGasterBlaster(0, player.y - 120, canvas.width, 100);
+        spawnGasterBlaster(0, player.y + 20, canvas.width, 100);
     }},
-    { time: 12.0, action: () => spawnVoidHands() },
-    { time: 12.5, action: () => spawnGlitchWall('horizontal') },
-    // Add more attacks here following the song's progression!
+    { time: 23.5, action: () => spawnGlitchWall('horizontal') },
+    { time: 24.5, action: () => spawnGlitchWall('vertical') },
+    
+    // Continuous pressure
+    { time: 27.0, action: () => spawnVoidHands() },
+    { time: 28.0, action: () => spawnGasterBlaster(canvas.width/4, 0, canvas.width/2, canvas.height) },
+    { time: 29.0, action: () => spawnVoidHands() },
 ];
 
 function executeAttacks(time) {
@@ -196,7 +195,7 @@ function executeAttacks(time) {
     }
 }
 
-// Main Game Loop
+// --- Main Game Loop ---
 function updateLoop() {
     if (!gameActive) return;
 
@@ -211,13 +210,12 @@ function updateLoop() {
 
     executeAttacks(currentTime);
 
-    // Player Movement
+    // Player Movement & Dash Logic
     let currentSpeed = player.speed;
     
-    // Dash Logic
     if (keys[' '] && player.dashCooldown === 0) {
         player.isDashing = true;
-        player.dashDuration = 10;
+        player.dashDuration = 12;
         player.dashCooldown = 45;
         player.invulnerable = 15;
     }
@@ -235,7 +233,7 @@ function updateLoop() {
     if (keys.a || keys.ArrowLeft) player.x -= currentSpeed;
     if (keys.d || keys.ArrowRight) player.x += currentSpeed;
 
-    // Boundaries
+    // Screen Boundaries
     player.x = Math.max(player.size / 2, Math.min(canvas.width - player.size / 2, player.x));
     player.y = Math.max(player.size / 2, Math.min(canvas.height - player.size / 2, player.y));
 
@@ -287,13 +285,13 @@ function gameWon() {
     hud.classList.add('hidden');
 }
 
-// Drawing Logic
+// --- Drawing Logic ---
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw Warnings
+    // Draw Warnings (Pulsing Purple)
     warnings.forEach(w => {
-        ctx.fillStyle = `rgba(106, 13, 173, ${w.life / w.maxLife})`; // Pulsing purple
+        ctx.fillStyle = `rgba(106, 13, 173, ${w.life / w.maxLife})`; 
         ctx.fillRect(w.x, w.y, w.w, w.h);
     });
 
@@ -309,8 +307,8 @@ function draw() {
         }
     });
 
-    // Draw Player
-    if (player.invulnerable % 4 < 2) { // Blinking effect when hurt/dashing
+    // Draw Player (Blinking when invulnerable)
+    if (player.invulnerable % 4 < 2) { 
         ctx.fillStyle = player.color;
         ctx.beginPath();
         ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
